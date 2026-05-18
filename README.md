@@ -7,12 +7,12 @@
 ### Department of Computer Science
 
 **Course:** Computer Graphics (Group Assignment)  
-**Project:** 🇰🇲 Comoros Flag & FILA Logo – OpenGL
+**Project:** Comoros Flag & FILA Logo – OpenGL
 
 ---
 
 
-# 🇰🇲 Description
+# Description
 
 Comoros Flag &amp; FILA Logo is an OpenGL/GLUT graphics project developed in C++. It combines an animated waving Comoros national flag with a scalable FILA logo using SVG path rendering, OpenGL tessellation, transformations, and fabric wind animation effects.
 
@@ -68,7 +68,7 @@ This project was a collaborative effort by Gondar University Computer Science st
 
 ## 🔍 Source Code Access
 The complete implementation can be found in:
-👉 **[main.cpp](./main.cpp)** 
+👉 **[main.cpp](main.cpp)** 
 *(Contains: Window setup, Wave logic, Logo tessellation, and Input handling)*
 
 ## ▶️ How to Run
