@@ -3,7 +3,7 @@
 </p>
 
 # UNIVERSITY OF GONDAR
-## Faculty of Informatics
+## College of Informatics
 ### Department of Computer Science
 
 **Course:** Computer Graphics (Group Assignment)  
@@ -46,7 +46,7 @@ This project was a collaborative effort by Gondar University Computer Science st
 ---
 
 ## 🛠️ Tech Stack
-- **Language:** C++14
+- **Language:** C++ programming language
 - **Graphics API:** OpenGL
 - **Utility Toolkit:** GLUT / FreeGLUT
 - **Mathematics:** Standard Math Library (`cmath`)
@@ -88,13 +88,8 @@ Before running the project, install:
 Open CMD or PowerShell:
 
 ```bash
-git clone https://github.com/selomon127-code/Comoros-FILA-OpenGL.git
+git clone https://github.com/selomon127-code/Comoros_FILA_OpenGL_Glut.git
 
 ...
-cd Comoros-FILA-OpenGL
+cd Comoros_FILA_OpenGL_Glut
 ``` 
-
-### 🐧 Linux / macOS
-```bash
-g++ -std=c++14 main.cpp -lGL -lGLU -lglut -o comoros_fila
-./comoros_fila
