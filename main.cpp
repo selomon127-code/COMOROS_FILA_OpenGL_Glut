@@ -94,7 +94,180 @@ static void cubicBezier(Contour& out,
         out.push_back({x, y});
     }
 }
+Sol
+// ============================================================
+// Fanuel — SVG Path Parser + GLU Tessellation Engine
 
+
+// ─────────────────────────────────────────────────────────────
+//  Number reader used by the SVG parser
+// ─────────────────────────────────────────────────────────────
+static double readNum(const std::string& s, size_t& pos)
+{
+    while (pos < s.size() &&
+           (s[pos]==' 's[pos]=='\t's[pos]=='\n's[pos]=='\r's[pos]==','))
+        ++pos;
+    size_t start = pos;
+    if (pos < s.size() && (s[pos]=='-'||s[pos]=='+')) ++pos;
+    while (pos < s.size() && (isdigit(s[pos])||s[pos]=='.')) ++pos;
+    if (pos < s.size() && (s[pos]=='e'||s[pos]=='E'))
+    {
+        ++pos;
+        if (pos < s.size() && (s[pos]=='+'||s[pos]=='-')) ++pos;
+        while (pos < s.size() && isdigit(s[pos])) ++pos;
+    }
+    return std::stod(s.substr(start, pos - start));
+}
+
+// ─────────────────────────────────────────────────────────────
+//  SVG Path Parser  (supports M m L l C c Z z commands)
+// ─────────────────────────────────────────────────────────────
+static Shape parseSVGPath(const std::string& d)
+{
+    Shape shape;
+    Contour current;
+    size_t i = 0;
+    char cmd = 0;
+    double cx = 0, cy = 0, sx = 0, sy = 0;
+
+    while (i < d.size())
+    {
+        while (i < d.size() &&
+               (d[i]==' 'd[i]=='\t'd[i]=='\n'||d[i]=='\r')) ++i;
+        if (i >= d.size()) break;
+        if (isalpha(d[i])) { cmd = d[i++]; continue; }
+
+        switch (cmd)
+        {
+        case 'M':
+            if (!current.empty()) shape.push_back(current);
+            current.clear();
+            cx = readNum(d,i); cy = readNum(d,i);
+            sx = cx; sy = cy;
+            current.push_back({cx,cy});
+            cmd = 'L';
+            break;
+        case 'm':
+            if (!current.empty()) shape.push_back(current);
+            current.clear();
+            cx += readNum(d,i); cy += readNum(d,i);
+            sx = cx; sy = cy;
+            current.push_back({cx,cy});
+            cmd = 'l';
+            break;
+        case 'L': { double nx=readNum(d,i),ny=readNum(d,i); current.push_back({nx,ny}); cx=nx; cy=ny; break; }
+        case 'l': { double dx=readNum(d,i),dy=readNum(d,i); cx+=dx; cy+=dy; current.push_back({cx,cy}); break; }
+        case 'C': {
+            Vec2 p0={cx,cy};
+            Vec2 p1={readNum(d,i),readNum(d,i)};
+            Vec2 p2={readNum(d,i),readNum(d,i)};
+            Vec2 p3={readNum(d,i),readNum(d,i)};
+            cubicBezier(current,p0,p1,p2,p3);
+            cx=p3.x; cy=p3.y; break; }
+        case 'c': {
+            Vec2 p0={cx,cy};
+            Vec2 p1={cx+readNum(d,i),cy+readNum(d,i)};
+            Vec2 p2={cx+readNum(d,i),cy+readNum(d,i)};
+            double ex=cx+readNum(d,i),ey=cy+readNum(d,i);
+            cubicBezier(current,p0,p1,p2,{ex,ey});
+            cx=ex; cy=ey; break; }
+        case 'Z': case 'z':
+            if (!current.empty()) current.push_back(current[0]);
+            shape.push_back(current);
+            current.clear();
+            cx=sx; cy=sy;
+            break;
+        default: ++i;
+        }
+    }
+    if (!current.empty()) shape.push_back(current);
+    return shape;
+}
+
+// ─────────────────────────────────────────────────────────────
+//  GLU Tessellation helpers
+// ─────────────────────────────────────────────────────────────
+struct TessData
+{
+    std::vector<std::vector<double>> verts;
+    std::vector<GLdouble*> ptrs;
+    GLenum primType;
+    std::vector<Vec2> strip;
+    std::vector<Vec2> filled;
+};
+
+static void CALLBACK tessVertex(void* vd, void* ud) {
+    TessData* td=(TessData*)ud; GLdouble* v=(GLdouble*)vd;
+    td->strip.push_back({v[0],v[1]});
+}
+static void CALLBACK tessBegin(GLenum t, void* ud) {
+    TessData* td=(TessData*)ud; td->primType=t; td->strip.clear();
+}
+static void CALLBACK tessEnd(void* ud) {
+    TessData* td=(TessData*)ud;
+    if (td->primType==GL_TRIANGLES)
+        for (auto& v:td->strip) td->filled.push_back(v);
+    else if (td->primType==GL_TRIANGLE_STRIP)
+        for (size_t k=2;k<td->strip.size();++k){
+            if(k%2==0){td->filled.push_back(td->strip[k-2]);td->filled.push_back(td->strip[k-1]);td->filled.push_back(td->strip[k]);}
+            else      {td->filled.push_back(td->strip[k-1]);td->filled.push_back(td->strip[k-2]);td->filled.push_back(td->strip[k]);}
+        }
+    else if (td->primType==GL_TRIANGLE_FAN)
+        for (size_t k=2;k<td->strip.size();++k){
+            td->filled.push_back(td->strip[0]);
+            td->filled.push_back(td->strip[k-1]);
+            td->filled.push_back(td->strip[k]);
+        }
+}
+static void CALLBACK tessCombine(GLdouble coords[3],void* /*vd*/[4],GLfloat /*w*/[4],void** out,void* ud) {
+    TessData* td=(TessData*)ud;
+    td->verts.push_back({coords[0],coords[1],coords[2]});
+    *out=td->verts.back().data();
+}
+static void CALLBACK tessError(GLenum err) { fprintf(stderr,"Tess error: %s\n",gluErrorString(err)); }
+
+static std::vector<Vec2> tessellateShape(const Shape& shape)
+{
+    TessData td;
+    GLUtesselator* tess = gluNewTess();
+    gluTessCallback(tess,GLU_TESS_VERTEX_DATA,(void(CALLBACK*)())tessVertex);
+    gluTessCallback(tess,GLU_TESS_BEGIN_DATA,(void(CALLBACK*)())tessBegin);
+    gluTessCallback(tess,GLU_TESS_END_DATA,(void(CALLBACK*)())tessEnd);
+    gluTessCallback(tess,GLU_TESS_COMBINE_DATA,(void(CALLBACK*)())tessCombine);
+    gluTessCallback(tess,GLU_TESS_ERROR,(void(CALLBACK*)())tessError);
+    gluTessProperty(tess,GLU_TESS_WINDING_RULE,GLU_TESS_WINDING_NONZERO);
+    gluTessBeginPolygon(tess,&td);
+    for (auto& contour:shape){
+        gluTessBeginContour(tess);
+        for (auto& pt:contour){
+            td.verts.push_back({pt.x,pt.y,0.0});
+            GLdouble* p=td.verts.back().data();
+            td.ptrs.push_back(p);
+            gluTessVertex(tess,p,p);
+        }
+        gluTessEndContour(tess);
+    }
+    gluTessEndPolygon(tess);
+    gluDeleteTess(tess);
+    return td.filled;
+}
+
+static void drawShape(const std::vector<Vec2>& tris) {
+    glBegin(GL_TRIANGLES);
+    for (auto& v:tris) glVertex2d(v.x,v.y);
+    glEnd();
+}
+
+static std::vector<Vec2> buildPath(const std::string& d) {
+    Shape raw=parseSVGPath(d);
+    Shape glShape;
+    for (auto& contour:raw){
+        Contour gc;
+        for (auto& p:contour) gc.push_back(svgToGL(p.x,p.y));
+        glShape.push_back(gc);
+    }
+    return tessellateShape(glShape);
+}
 
 // ============================================================
 // Nicolas 6 — Green Triangle, Crescent, Stars, drawFlag(), Background
